@@ -1,57 +1,72 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+const time = parts[1].trim();
+const rest = parts[2].trim();
 
-generator client {
-  provider = "prisma-client-js"
+// Now parse "STP 1-0 BVB" pattern.
+// We'll look for "<homeCode or name> <homeGoals>-<awayGoals> <awayCode or name>"
+// Use a regex that tolerates multiple spaces.
+// Capture groups:
+// 1 = homeTeam (greedy up to space before score)
+// 2 = homeGoals
+// 3 = awayGoals
+// 4 = awayTeam (rest)
+const m = rest.match(/^(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+)$/);
+if (!m) {
+  // Try alternative pattern: teams with dashes in names or no spaces around dash
+  const alt = rest.match(/^(.+?)\s+(\d+)-(\d+)\s+(.+)$/);
+  if (!alt) continue;
+  // use alt match
+  const homeTeamAlt = alt[1].trim();
+  const homeGoalsAlt = Number(alt[2]);
+  const awayGoalsAlt = Number(alt[3]);
+  const awayTeamAlt = alt[4].trim();
+
+  if (
+    Number.isFinite(homeGoalsAlt) &&
+    Number.isFinite(awayGoalsAlt) &&
+    homeTeamAlt.length > 0 &&
+    awayTeamAlt.length > 0
+  ) {
+    const total = homeGoalsAlt + awayGoalsAlt;
+    results.push({
+      time,
+      homeTeam: homeTeamAlt,
+      awayTeam: awayTeamAlt,
+      homeGoals: homeGoalsAlt,
+      awayGoals: awayGoalsAlt,
+      totalGoals: total,
+      over15: total >= 2,
+      over25: total >= 3,
+      raw_line: raw,
+    });
+  }
+  continue;
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+const homeTeam = m[1].trim();
+const homeGoals = Number(m[2]);
+const awayGoals = Number(m[3]);
+const awayTeam = m[4].trim();
+
+// Validate numeric conversion and required fields
+if (
+  !homeTeam ||
+  !awayTeam ||
+  !Number.isFinite(homeGoals) ||
+  !Number.isFinite(awayGoals)
+) {
+  continue;
 }
 
-model Result {
-  id         String   @id @default(uuid())
-  time       String
-  homeTeam   String
-  awayTeam   String
-  homeGoals  Int
-  awayGoals  Int
-  totalGoals Int
-  over15     Boolean
-  over25     Boolean
-  createdAt  DateTime @default(now())
+const totalGoals = homeGoals + awayGoals;
 
-  @@index([homeTeam])
-  @@index([awayTeam])
-}
-
-model Odd {
-  id        String   @id @default(uuid())
-  time      String
-  homeTeam  String
-  awayTeam  String
-  odd1      Float
-  oddX      Float
-  odd2      Float
-  goalLine  Float
-  overOdd   Float
-  underOdd  Float
-  createdAt DateTime @default(now())
-
-  @@index([homeTeam])
-  @@index([awayTeam])
-}
-
-model Prediction {
-  id                     String   @id @default(uuid())
-  oddId                  String
-  combinedExpectedGoals  Float
-  over15Probability      Float
-  over25Probability      Float
-  decision               String
-  confidenceScore        Float
-  createdAt              DateTime @default(now())
-
-  @@index([oddId])
-}
+results.push({
+  time,
+  homeTeam,
+  awayTeam,
+  homeGoals,
+  awayGoals,
+  totalGoals,
+  over15: totalGoals >= 2,
+  over25: totalGoals >= 3,
+  raw_line: raw,
+});
