@@ -53,6 +53,20 @@ export interface TeamSwitchPattern {
   matchesAtCurrentBlock: number;
 }
 
+// Home vs Away performance for a team
+export interface HomeAwayPerformance {
+  teamName: string;
+  homeOverRate: number; // Over rate when playing at home
+  awayOverRate: number; // Over rate when playing away
+  homeAvgGoals: number; // Avg goals scored at home
+  awayAvgGoals: number; // Avg goals scored away
+  homeMatches: number; // Number of home matches
+  awayMatches: number; // Number of away matches
+  homeAdvantage: number; // Difference (home - away) positive = home stronger
+  recentHomeForm: boolean[]; // Last 5 home results
+  recentAwayForm: boolean[]; // Last 5 away results
+}
+
 export interface PatternAnalysis {
   streakInfo: StreakInfo;
   recentForm: RecentForm;
@@ -60,6 +74,7 @@ export interface PatternAnalysis {
   bounceBack: BounceBackProbability;
   blockTimePattern: BlockTimePattern;
   teamSwitchPattern?: TeamSwitchPattern;
+  homeAwayPerformance?: HomeAwayPerformance;
   patternScore: number; // -100 to +100, positive = likely over
   confidenceBoost: number; // Adjustment to apply to base probability
 }
@@ -400,13 +415,96 @@ export function analyzeTeamSwitch(
   };
 }
 
+// Analyze home vs away performance for a team - "Team Switch" analysis
+export function analyzeHomeAwayPerformance(
+  results: Result[],
+  teamName: string
+): HomeAwayPerformance | null {
+  // Get all matches for this team
+  const teamMatches = results.filter(
+    r => r.home_team.toLowerCase() === teamName.toLowerCase() ||
+         r.away_team.toLowerCase() === teamName.toLowerCase()
+  );
+
+  if (teamMatches.length < 3) {
+    return null; // Not enough data
+  }
+
+  // Separate home and away matches
+  const homeMatches = teamMatches.filter(
+    r => r.home_team.toLowerCase() === teamName.toLowerCase()
+  );
+  const awayMatches = teamMatches.filter(
+    r => r.away_team.toLowerCase() === teamName.toLowerCase()
+  );
+
+  // Sort by date/time, most recent first
+  const sortedHome = [...homeMatches].sort((a, b) => {
+    const dateA = a.match_date || '';
+    const dateB = b.match_date || '';
+    return dateB.localeCompare(dateA);
+  });
+  const sortedAway = [...awayMatches].sort((a, b) => {
+    const dateA = a.match_date || '';
+    const dateB = b.match_date || '';
+    return dateB.localeCompare(dateA);
+  });
+
+  // Calculate home over rate
+  const homeOvers = homeMatches.filter(r => r.over_15).length;
+  const homeOverRate = homeMatches.length > 0 
+    ? (homeOvers / homeMatches.length) * 100 
+    : 0;
+
+  // Calculate away over rate
+  const awayOvers = awayMatches.filter(r => r.over_15).length;
+  const awayOverRate = awayMatches.length > 0 
+    ? (awayOvers / awayMatches.length) * 100 
+    : 0;
+
+  // Calculate average goals at home (goals scored by this team at home)
+  const homeGoalsScored = homeMatches.reduce((sum, r) => sum + r.home_goals, 0);
+  const homeAvgGoals = homeMatches.length > 0 
+    ? homeGoalsScored / homeMatches.length 
+    : 0;
+
+  // Calculate average goals away (goals scored by this team away)
+  const awayGoalsScored = awayMatches.reduce((sum, r) => sum + r.away_goals, 0);
+  const awayAvgGoals = awayMatches.length > 0 
+    ? awayGoalsScored / awayMatches.length 
+    : 0;
+
+  // Recent home form (last 5)
+  const recentHomeForm = sortedHome.slice(0, 5).map(r => r.over_15);
+  
+  // Recent away form (last 5)
+  const recentAwayForm = sortedAway.slice(0, 5).map(r => r.over_15);
+
+  // Home advantage: positive means team scores more at home
+  const homeAdvantage = homeOverRate - awayOverRate;
+
+  return {
+    teamName,
+    homeOverRate: Math.round(homeOverRate * 10) / 10,
+    awayOverRate: Math.round(awayOverRate * 10) / 10,
+    homeAvgGoals: Math.round(homeAvgGoals * 10) / 10,
+    awayAvgGoals: Math.round(awayAvgGoals * 10) / 10,
+    homeMatches: homeMatches.length,
+    awayMatches: awayMatches.length,
+    homeAdvantage: Math.round(homeAdvantage * 10) / 10,
+    recentHomeForm,
+    recentAwayForm,
+  };
+}
+
 // Calculate overall pattern score and confidence boost
 export function calculatePatternScore(
   streakInfo: StreakInfo,
   recentForm: RecentForm,
   blockTimePattern: BlockTimePattern,
   bounceBack: BounceBackProbability,
-  teamSwitch?: TeamSwitchPattern | null
+  teamSwitch?: TeamSwitchPattern | null,
+  homeAway?: HomeAwayPerformance | null
 ): { patternScore: number; confidenceBoost: number } {
   let score = 0;
 
@@ -481,6 +579,40 @@ export function calculatePatternScore(
     }
   }
 
+  // Home/Away Team Switch Analysis (max ±30 points)
+  // This tracks how teams perform differently when playing home vs away
+  if (homeAway && (homeAway.homeMatches >= 3 || homeAway.awayMatches >= 3)) {
+    // Strong home advantage - team scores more at home
+    if (homeAway.homeAdvantage > 20) {
+      score += 15;
+    } else if (homeAway.homeAdvantage > 10) {
+      score += 10;
+    } else if (homeAway.homeAdvantage < -20) {
+      score -= 15; // Team is stronger away
+    } else if (homeAway.homeAdvantage < -10) {
+      score -= 10;
+    }
+
+    // Recent form at current venue matters
+    if (homeAway.recentHomeForm.length >= 3) {
+      const recentHomeOverRate = (homeAway.recentHomeForm.filter(Boolean).length / homeAway.recentHomeForm.length) * 100;
+      if (recentHomeOverRate >= 80) {
+        score += 10; // Hot at home
+      } else if (recentHomeOverRate < 40) {
+        score -= 10; // Cold at home
+      }
+    }
+
+    if (homeAway.recentAwayForm.length >= 3) {
+      const recentAwayOverRate = (homeAway.recentAwayForm.filter(Boolean).length / homeAway.recentAwayForm.length) * 100;
+      if (recentAwayOverRate >= 80) {
+        score += 10; // Hot away
+      } else if (recentAwayOverRate < 40) {
+        score -= 10; // Cold away
+      }
+    }
+  }
+
   // Clamp score to -100 to +100
   const patternScore = Math.max(-100, Math.min(100, score));
   
@@ -503,17 +635,23 @@ export function analyzePatterns(
   const bounceBack = calculateBounceBack(results);
   const blockTimePattern = analyzeBlockTimePattern(results, blockTime);
   
-  // Analyze team switch patterns if teams are provided
+  // Analyze team switch patterns (block time preference) if teams are provided
   const teamSwitchPattern = (homeTeam && awayTeam) 
     ? analyzeTeamSwitch(results, homeTeam, awayTeam, blockTime) ?? undefined
     : undefined;
   
+  // Analyze home vs away performance (Team Switch) for home team
+  const homeAwayPerformance = homeTeam 
+    ? analyzeHomeAwayPerformance(results, homeTeam) ?? undefined
+    : undefined;
+
   const { patternScore, confidenceBoost } = calculatePatternScore(
     streakInfo,
     recentForm,
     blockTimePattern,
     bounceBack,
-    teamSwitchPattern
+    teamSwitchPattern,
+    homeAwayPerformance
   );
 
   return {
@@ -523,6 +661,7 @@ export function analyzePatterns(
     bounceBack,
     blockTimePattern,
     teamSwitchPattern,
+    homeAwayPerformance,
     patternScore,
     confidenceBoost,
   };
