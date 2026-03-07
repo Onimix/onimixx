@@ -41,12 +41,25 @@ export interface BlockTimePattern {
   streakInfo: StreakInfo;
 }
 
+export interface TeamSwitchPattern {
+  teamName: string;
+  currentBlockTime: string;
+  overRateAtCurrentBlock: number; // Team's over rate at this block time
+  overRateAtOtherBlocks: number; // Team's over rate at other block times
+  switchImpact: number; // How much better/worse they perform after switching
+  recentSwitchForm: boolean[]; // Results after recent block time switches
+  switchOverRate: number; // Over rate when playing at current block
+  avgGoalsAtCurrentBlock: number;
+  matchesAtCurrentBlock: number;
+}
+
 export interface PatternAnalysis {
   streakInfo: StreakInfo;
   recentForm: RecentForm;
   dayOfWeekStats: DayOfWeekStats[];
   bounceBack: BounceBackProbability;
   blockTimePattern: BlockTimePattern;
+  teamSwitchPattern?: TeamSwitchPattern;
   patternScore: number; // -100 to +100, positive = likely over
   confidenceBoost: number; // Adjustment to apply to base probability
 }
@@ -320,12 +333,80 @@ export function analyzeBlockTimePattern(results: Result[], blockTime: string): B
   };
 }
 
+// Analyze team switch patterns - how teams perform when switching block times
+export function analyzeTeamSwitch(
+  results: Result[], 
+  homeTeam: string, 
+  awayTeam: string, 
+  targetBlockTime: string
+): TeamSwitchPattern | null {
+  // Get all matches for both teams
+  const teamMatches = results.filter(
+    r => r.home_team.toLowerCase() === homeTeam.toLowerCase() ||
+         r.away_team.toLowerCase() === homeTeam.toLowerCase() ||
+         r.home_team.toLowerCase() === awayTeam.toLowerCase() ||
+         r.away_team.toLowerCase() === awayTeam.toLowerCase()
+  );
+
+  if (teamMatches.length < 3) {
+    return null; // Not enough data
+  }
+
+  // Sort by date/time
+  const sorted = [...teamMatches].sort((a, b) => {
+    const dateA = a.match_date || '';
+    const dateB = b.match_date || '';
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    return a.block_time.localeCompare(b.block_time);
+  });
+
+  // Find matches at the target block time
+  const currentBlockMatches = sorted.filter(r => r.block_time === targetBlockTime);
+  const otherBlockMatches = sorted.filter(r => r.block_time !== targetBlockTime);
+
+  // Calculate over rate at current block
+  const overRateAtCurrent = currentBlockMatches.length > 0
+    ? (currentBlockMatches.filter(r => r.over_15).length / currentBlockMatches.length) * 100
+    : 0;
+
+  // Calculate over rate at other blocks
+  const overRateAtOther = otherBlockMatches.length > 0
+    ? (otherBlockMatches.filter(r => r.over_15).length / otherBlockMatches.length) * 100
+    : 0;
+
+  // Calculate average goals at current block
+  const avgGoalsCurrent = currentBlockMatches.length > 0
+    ? currentBlockMatches.reduce((sum, r) => sum + r.total_goals, 0) / currentBlockMatches.length
+    : 0;
+
+  // Analyze recent switch form (last 5 matches at this block time)
+  const recentSwitchForm = currentBlockMatches
+    .slice(0, 5)
+    .map(r => r.over_15);
+
+  // Switch impact: positive = team performs better at this block
+  const switchImpact = overRateAtCurrent - overRateAtOther;
+
+  return {
+    teamName: `${homeTeam} vs ${awayTeam}`,
+    currentBlockTime: targetBlockTime,
+    overRateAtCurrentBlock: Math.round(overRateAtCurrent * 10) / 10,
+    overRateAtOtherBlocks: Math.round(overRateAtOther * 10) / 10,
+    switchImpact: Math.round(switchImpact * 10) / 10,
+    recentSwitchForm,
+    switchOverRate: Math.round(overRateAtCurrent * 10) / 10,
+    avgGoalsAtCurrentBlock: Math.round(avgGoalsCurrent * 10) / 10,
+    matchesAtCurrentBlock: currentBlockMatches.length,
+  };
+}
+
 // Calculate overall pattern score and confidence boost
 export function calculatePatternScore(
   streakInfo: StreakInfo,
   recentForm: RecentForm,
   blockTimePattern: BlockTimePattern,
-  bounceBack: BounceBackProbability
+  bounceBack: BounceBackProbability,
+  teamSwitch?: TeamSwitchPattern | null
 ): { patternScore: number; confidenceBoost: number } {
   let score = 0;
 
@@ -376,6 +457,30 @@ export function calculatePatternScore(
     }
   }
 
+  // Team switch analysis (max ±25 points)
+  if (teamSwitch && teamSwitch.matchesAtCurrentBlock >= 3) {
+    // Positive switch impact means team performs better at this block time
+    if (teamSwitch.switchImpact > 15) {
+      score += 20; // Strong preference for this block time
+    } else if (teamSwitch.switchImpact > 5) {
+      score += 10; // Moderate preference
+    } else if (teamSwitch.switchImpact < -15) {
+      score -= 20; // Team performs worse at this block time
+    } else if (teamSwitch.switchImpact < -5) {
+      score -= 10; // Slightly worse
+    }
+
+    // Recent switch form matters too
+    if (teamSwitch.recentSwitchForm.length >= 3) {
+      const recentOverRate = (teamSwitch.recentSwitchForm.filter(Boolean).length / teamSwitch.recentSwitchForm.length) * 100;
+      if (recentOverRate >= 80) {
+        score += 10; // Hot at this block time
+      } else if (recentOverRate < 40) {
+        score -= 10; // Cold at this block time
+      }
+    }
+  }
+
   // Clamp score to -100 to +100
   const patternScore = Math.max(-100, Math.min(100, score));
   
@@ -386,18 +491,29 @@ export function calculatePatternScore(
 }
 
 // Main function: Full pattern analysis
-export function analyzePatterns(results: Result[], blockTime: string): PatternAnalysis {
+export function analyzePatterns(
+  results: Result[], 
+  blockTime: string,
+  homeTeam?: string,
+  awayTeam?: string
+): PatternAnalysis {
   const streakInfo = detectStreak(results);
   const recentForm = analyzeRecentForm(results);
   const dayOfWeekStats = analyzeDayOfWeek(results);
   const bounceBack = calculateBounceBack(results);
   const blockTimePattern = analyzeBlockTimePattern(results, blockTime);
   
+  // Analyze team switch patterns if teams are provided
+  const teamSwitchPattern = (homeTeam && awayTeam) 
+    ? analyzeTeamSwitch(results, homeTeam, awayTeam, blockTime) ?? undefined
+    : undefined;
+  
   const { patternScore, confidenceBoost } = calculatePatternScore(
     streakInfo,
     recentForm,
     blockTimePattern,
-    bounceBack
+    bounceBack,
+    teamSwitchPattern
   );
 
   return {
@@ -406,6 +522,7 @@ export function analyzePatterns(results: Result[], blockTime: string): PatternAn
     dayOfWeekStats,
     bounceBack,
     blockTimePattern,
+    teamSwitchPattern,
     patternScore,
     confidenceBoost,
   };

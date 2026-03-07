@@ -103,8 +103,13 @@ export function analyzeMatch(
   // Calculate expected goals based on team stats
   const expectedGoals = teamAvgScored + teamAvgConceded;
   
-  // Run pattern detection
-  const patternAnalysis = analyzePatterns(results, match.block_time);
+  // Run pattern detection with team information for team switch analysis
+  const patternAnalysis = analyzePatterns(
+    results, 
+    match.block_time,
+    match.home_team,
+    match.away_team
+  );
   
   // Apply pattern-based confidence boost to historical rate
   const adjustedOver15Rate = Math.max(0, Math.min(100, 
