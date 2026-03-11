@@ -8,7 +8,7 @@ import HistoricalStatsPanel from '@/components/HistoricalStats';
 import PredictionPanel from '@/components/PredictionPanel';
 import { getAllResults, getAllOdds, getHistoricalStats, getPerformanceMetrics, insertPrediction } from '@/lib/supabase';
 import { analyzeMatch } from '@/lib/analysis';
-import type { Result, Odds, HistoricalStats, Prediction, PerformanceMetrics } from '@/lib/types';
+import type { Result, Odds, HistoricalStats, Prediction, PerformanceMetrics, ShadowMirrorPrediction } from '@/lib/types';
 
 // Matrix characters for edges - tiny falling code effect
 const matrixChars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
@@ -102,6 +102,9 @@ export default function Home() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
+  const [shadowMirrorPredictions, setShadowMirrorPredictions] = useState<ShadowMirrorPrediction[]>([]);
+  const [shadowMirrorSummary, setShadowMirrorSummary] = useState<any>(null);
+  const [isShadowMirrorLoading, setIsShadowMirrorLoading] = useState(false);
 
   const handleDataInputClick = () => {
     if (isDataInputUnlocked) {
@@ -200,14 +203,33 @@ export default function Home() {
 
   useEffect(() => {
     loadData();
+    loadShadowMirror();
   }, [loadData]);
 
   const handleResultsUploaded = () => {
     loadData();
+    loadShadowMirror();
   };
 
   const handleOddsSubmitted = () => {
     loadData();
+    loadShadowMirror();
+  };
+
+  const loadShadowMirror = async () => {
+    setIsShadowMirrorLoading(true);
+    try {
+      const response = await fetch('/api/shadow-mirror');
+      const data = await response.json();
+      if (data.success) {
+        setShadowMirrorPredictions(data.predictions || []);
+        setShadowMirrorSummary(data.summary || null);
+      }
+    } catch (error) {
+      console.error('Error loading shadow mirror:', error);
+    } finally {
+      setIsShadowMirrorLoading(false);
+    }
   };
 
   return (
@@ -360,6 +382,172 @@ export default function Home() {
               </div>
             ) : (
               <HistoricalStatsPanel stats={historicalStats} />
+            )}
+          </div>
+        </section>
+
+        {/* SHADOW MIRROR PANEL - 24-Hour Team Switch Analysis */}
+        <section className="mb-10">
+          <div className="bg-gradient-to-br from-indigo-900/50 via-purple-900/50 to-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-indigo-500/30">
+            <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+              🦅 SHADOW MIRROR - 24H Team Switch Protocol
+            </h2>
+            <p className="text-indigo-300 text-sm mb-6">
+              Multi-league analysis (GER, ITA, SPA) • Bayesian Weighting (70% Mirror, 20% Switch, 10% Form)
+            </p>
+            
+            {isShadowMirrorLoading ? (
+              <div className="animate-pulse flex gap-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex-1 h-32 bg-indigo-900/50 rounded-xl" />
+                ))}
+              </div>
+            ) : shadowMirrorPredictions.length > 0 ? (
+              <>
+                {/* Summary Stats */}
+                {shadowMirrorSummary && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-indigo-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-indigo-400">
+                        {shadowMirrorSummary.mirror_anchors_found}
+                      </div>
+                      <div className="text-xs text-indigo-300">Mirror Anchors</div>
+                    </div>
+                    <div className="bg-red-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-red-400">
+                        {shadowMirrorSummary.deadlocks}
+                      </div>
+                      <div className="text-xs text-red-300">Deadlocks (0:0, 1:0)</div>
+                    </div>
+                    <div className="bg-orange-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-orange-400">
+                        {shadowMirrorSummary.blowouts}
+                      </div>
+                      <div className="text-xs text-orange-300">Blowouts (6+ goals)</div>
+                    </div>
+                    <div className="bg-green-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-green-400">
+                        {shadowMirrorSummary.validated_signals}
+                      </div>
+                      <div className="text-xs text-green-300">Validated Signals</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Signal Type Breakdown */}
+                {shadowMirrorSummary?.by_signal_type && (
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {shadowMirrorSummary.by_signal_type.gap_fill > 0 && (
+                      <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-sm font-semibold">
+                        Gap-Fill: {shadowMirrorSummary.by_signal_type.gap_fill}
+                      </span>
+                    )}
+                    {shadowMirrorSummary.by_signal_type.new_producer > 0 && (
+                      <span className="bg-cyan-500/20 text-cyan-400 px-3 py-1 rounded-full text-sm font-semibold">
+                        New Producer: {shadowMirrorSummary.by_signal_type.new_producer}
+                      </span>
+                    )}
+                    {shadowMirrorSummary.by_signal_type.bait_switch > 0 && (
+                      <span className="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-sm font-semibold">
+                        Bait Switch: {shadowMirrorSummary.by_signal_type.bait_switch}
+                      </span>
+                    )}
+                    {shadowMirrorSummary.by_signal_type.mirror_anchor > 0 && (
+                      <span className="bg-purple-500/20 text-purple-400 px-3 py-1 rounded-full text-sm font-semibold">
+                        Mirror Anchor: {shadowMirrorSummary.by_signal_type.mirror_anchor}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Predictions Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-indigo-300 text-sm">
+                        <th className="pb-3 pr-4">Time</th>
+                        <th className="pb-3 pr-4">League</th>
+                        <th className="pb-3 pr-4">Match</th>
+                        <th className="pb-3 pr-4">Prediction</th>
+                        <th className="pb-3 pr-4">Confidence</th>
+                        <th className="pb-3 pr-4">Signal</th>
+                        <th className="pb-3 pr-4">Odds</th>
+                        <th className="pb-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-white">
+                      {shadowMirrorPredictions.slice(0, 10).map((pred, idx) => (
+                        <tr key={idx} className="border-t border-indigo-800/30 hover:bg-indigo-900/20">
+                          <td className="py-3 pr-4 font-mono text-indigo-300">{pred.time}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                              pred.league === 'GER' ? 'bg-red-500/20 text-red-400' :
+                              pred.league === 'ITA' ? 'bg-blue-500/20 text-blue-400' :
+                              'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {pred.league}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 font-semibold">{pred.match}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`px-2 py-1 rounded text-sm font-bold ${
+                              pred.prediction === 'Over 1.5' 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : 'bg-orange-500/20 text-orange-400'
+                            }`}>
+                              {pred.prediction}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full ${
+                                    pred.confidence >= 90 ? 'bg-green-400' :
+                                    pred.confidence >= 80 ? 'bg-cyan-400' :
+                                    'bg-yellow-400'
+                                  }`}
+                                  style={{ width: `${pred.confidence}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-bold">{pred.confidence}%</span>
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              pred.signal_type === 'Gap-Fill' ? 'bg-blue-500/20 text-blue-400' :
+                              pred.signal_type === 'New Producer' ? 'bg-cyan-500/20 text-cyan-400' :
+                              pred.signal_type === 'Bait Switch' ? 'bg-red-500/20 text-red-400' :
+                              'bg-purple-500/20 text-purple-400'
+                            }`}>
+                              {pred.signal_type}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 font-mono">{pred.odds.toFixed(2)}</td>
+                          <td className="py-3">
+                            {pred.validated ? (
+                              <span className="text-green-400 text-lg">✓</span>
+                            ) : (
+                              <span className="text-yellow-400 text-lg">⚠</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {shadowMirrorPredictions.length === 0 && (
+                  <div className="text-center py-8 text-indigo-300">
+                    No shadow mirror signals found. Upload results and odds to generate predictions.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-indigo-300">
+                <p>No shadow mirror signals available.</p>
+                <p className="text-sm mt-2">Upload yesterday&apos;s results and today&apos;s odds to generate 24-hour team switch predictions.</p>
+              </div>
             )}
           </div>
         </section>

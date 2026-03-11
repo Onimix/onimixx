@@ -359,6 +359,77 @@ export interface DayBlockPerformance {
   over25_rate: number;
 }
 
+// ============================================
+// SHADOW MIRROR & ROLE REVERSAL TYPES
+// ============================================
+
+// Supported leagues
+export type League = 'GER' | 'ITA' | 'SPA';
+
+// Multi-league team arrays
+export const LEAGUE_TEAMS: Record<League, string[]> = {
+  GER: ['BMU', 'BVB', 'RBL', 'LEV', 'SGE', 'SCF', 'WOB', 'BMG', 'TSG', 'MAI', 'SVW', 'FCA', 'HDH', 'VFB', 'KOE', 'HSV', 'STP', 'UNI'],
+  ITA: ['INT', 'JUV', 'ACM', 'NAP', 'ROM', 'LAZ', 'ATA', 'FIO', 'TOR', 'BFC', 'UDI', 'SAS', 'GEN', 'VER', 'LEC', 'CAG', 'EMP', 'MON', 'PAR', 'COM'],
+  SPA: ['RMA', 'FCB', 'ATM', 'GIR', 'RSO', 'RBB', 'VIL', 'VCF', 'BIL', 'OSA', 'GET', 'RAY', 'SEV', 'MAL', 'CEL', 'ALA', 'GRA', 'LPA', 'CAD', 'ELC'],
+};
+
+// Mirror Anchor - result from T-1 (yesterday) used for prediction
+export interface MirrorAnchor {
+  block_time: string;
+  match_date: string;
+  home_team: string;
+  away_team: string;
+  home_goals: number;
+  away_goals: number;
+  total_goals: number;
+  is_deadlock: boolean; // 0:0 or 1:0
+  is_blowout: boolean; // 4:0, 3:1, 4:2 (6+ total goals)
+  dry_team: string | null; // Team that scored 0
+  goal_debt: number; // Goals needed to break deadlock
+}
+
+// Team Switch Analysis
+export interface TeamSwitchAnalysis {
+  team: string;
+  yesterday_role: 'dry' | 'producer' | 'neutral';
+  today_role: 'producer' | 'bait' | 'neutral';
+  switch_trigger: 'dry_to_producer' | 'producer_to_bait' | null;
+  switch_confidence: number;
+  switch_reason: string;
+}
+
+// Shadow Mirror Prediction
+export interface ShadowMirrorPrediction {
+  id?: string;
+  time: string;
+  league: League;
+  match: string;
+  home_team: string;
+  away_team: string;
+  prediction: 'Over 1.5' | 'Under 2.5';
+  confidence: number;
+  confidence_label: string;
+  odds: number;
+  mirror_anchor?: MirrorAnchor;
+  team_switch?: TeamSwitchAnalysis;
+  signal_type: 'Gap-Fill' | 'New Producer' | 'Bait Switch' | 'Mirror Anchor';
+  validated: boolean; // Passes odds filter
+  created_at?: string;
+}
+
+// Odds validation ranges
+export const ODDS_VALIDATION = {
+  OVER_15: { min: 1.40, max: 1.57 },
+  UNDER_25: { min: 1.65, max: 2.10 },
+};
+
+// Bayesian weights for prediction
+export const BAYESIAN_WEIGHTS = {
+  MIRROR_ANCHOR: 0.70,
+  PRODUCTION_SWITCH: 0.20,
+  CURRENT_FORM: 0.10,
+};
+
 // Parsed Over 2.5 odds from bulk input
 export interface ParsedOver25Odds {
   match_date: string;
