@@ -78,6 +78,22 @@ export function isBlowout(homeGoals: number, awayGoals: number): boolean {
   return (homeGoals + awayGoals) >= 6;
 }
 
+// Calculate the total goal average for a specific block time across all leagues
+export function calculateBlockGoalAverage(results: Result[], blockTime: string): number {
+  const blockMatches = results.filter(r => r.block_time === blockTime);
+  if (blockMatches.length === 0) return 0;
+  const totalGoals = blockMatches.reduce((sum, r) => sum + r.total_goals, 0);
+  return totalGoals / blockMatches.length;
+}
+
+// Check if block is in "Goal Flush" zone (high scoring) or "Defensive Lock" zone
+export function getBlockZoneType(results: Result[], blockTime: string): 'goal_flush' | 'defensive_lock' | 'neutral' {
+  const avgGoals = calculateBlockGoalAverage(results, blockTime);
+  if (avgGoals >= 4.5) return 'goal_flush';
+  if (avgGoals <= 1.5) return 'defensive_lock';
+  return 'neutral';
+}
+
 // Get the team that was "dry" (scored 0 goals)
 export function getDryTeam(homeGoals: number, awayGoals: number, homeTeam: string, awayTeam: string): string | null {
   if (homeGoals === 0) return homeTeam;
@@ -219,6 +235,9 @@ export function generateShadowMirrorPredictions(
     const league = getTeamLeague(match.home_team) || getTeamLeague(match.away_team);
     if (!league) continue;
     
+    // Get block zone type (Exit 6 cap)
+    const blockZone = getBlockZoneType(results, match.block_time);
+    
     // Try to find a mirror anchor involving these teams
     const relevantAnchors = mirrorAnchors.filter(
       anchor => 
@@ -249,7 +268,16 @@ export function generateShadowMirrorPredictions(
     if (homeSwitch?.switch_trigger === 'dry_to_producer' || awaySwitch?.switch_trigger === 'dry_to_producer') {
       prediction = 'Over 1.5';
       teamSwitch = homeSwitch || awaySwitch;
-      confidence = (teamSwitch?.switch_confidence || 90) + 4; // +4 for Gap-Fill bonus
+      let baseConfidence = (teamSwitch?.switch_confidence || 90) + 4; // +4 for Gap-Fill bonus
+      
+      // Apply Exit 6 cap adjustment
+      if (blockZone === 'goal_flush') {
+        baseConfidence += 10; // Bonus in high-scoring block
+      } else if (blockZone === 'defensive_lock') {
+        baseConfidence -= 15; // Penalty in defensive block
+      }
+      
+      confidence = baseConfidence;
       signalType = homeSwitch?.switch_trigger === 'dry_to_producer' ? 'Gap-Fill' : 'New Producer';
       
       // Validate odds
@@ -263,7 +291,16 @@ export function generateShadowMirrorPredictions(
     else if (homeSwitch?.switch_trigger === 'producer_to_bait' || awaySwitch?.switch_trigger === 'producer_to_bait') {
       prediction = 'Under 2.5';
       teamSwitch = homeSwitch || awaySwitch;
-      confidence = (teamSwitch?.switch_confidence || 85) + 3; // +3 for Bait Switch bonus
+      let baseConfidence = (teamSwitch?.switch_confidence || 85) + 3; // +3 for Bait Switch bonus
+      
+      // Apply Exit 6 cap adjustment
+      if (blockZone === 'defensive_lock') {
+        baseConfidence += 10; // Bonus in defensive block
+      } else if (blockZone === 'goal_flush') {
+        baseConfidence -= 15; // Penalty in high-scoring block
+      }
+      
+      confidence = baseConfidence;
       signalType = 'Bait Switch';
       
       // Validate odds
@@ -359,6 +396,8 @@ const shadowMirrorExports = {
   isDeadlock,
   isBlowout,
   getDryTeam,
+  calculateBlockGoalAverage,
+  getBlockZoneType,
   findMirrorAnchors,
   analyzeTeamSwitch,
   calculateBayesianConfidence,

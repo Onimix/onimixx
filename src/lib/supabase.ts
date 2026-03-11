@@ -154,6 +154,44 @@ export async function getResultsByTeam(teamName: string): Promise<Result[]> {
   }
 }
 
+// Get results by date range (for efficient Shadow Mirror queries)
+export async function getResultsByDateRange(
+  startDate: string, 
+  endDate: string
+): Promise<Result[]> {
+  if (!supabase) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('results')
+      .select('*')
+      .gte('match_date', startDate)
+      .lte('match_date', endDate)
+      .order('match_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching results by date range:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching results by date range:', error);
+    return [];
+  }
+}
+
+// Get yesterday's results specifically (optimized for Shadow Mirror)
+export async function getYesterdayResults(): Promise<Result[]> {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  
+  return getResultsByDateRange(yesterdayStr, yesterdayStr);
+}
+
 // Odds operations
 export async function insertOdds(oddsList: Omit<Odds, 'id' | 'created_at'>[]): Promise<{ success: boolean; error?: string; count: number }> {
   if (!supabase) {
