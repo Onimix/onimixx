@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Result, Odds, PredictionRecord, PerformanceMetrics, ProbabilityBands, Over25Result, UpcomingMatch, BucketStats, OddsPattern } from './types';
+import type { Result, Odds, PredictionRecord, PerformanceMetrics, ProbabilityBands, Over25Result, UpcomingMatch, BucketStats, OddsPattern, League } from './types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 // Support both anon key and publishable key variable names
@@ -150,6 +150,62 @@ export async function getResultsByTeam(teamName: string): Promise<Result[]> {
     return data || [];
   } catch (error) {
     console.error('Error fetching results by team:', error);
+    return [];
+  }
+}
+
+// Get results by league (GER, ITA, SPA)
+export async function getResultsByLeague(league: string): Promise<Result[]> {
+  if (!supabase) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('results')
+      .select('*')
+      .eq('league', league)
+      .order('match_date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching results by league:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching results by league:', error);
+    return [];
+  }
+}
+
+// Get results by league and date range (for Shadow Mirror)
+export async function getResultsByLeagueAndDateRange(
+  league: string,
+  startDate: string, 
+  endDate: string
+): Promise<Result[]> {
+  if (!supabase) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('results')
+      .select('*')
+      .eq('league', league)
+      .gte('match_date', startDate)
+      .lte('match_date', endDate)
+      .order('match_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching results by league and date range:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching results by league and date range:', error);
     return [];
   }
 }

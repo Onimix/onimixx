@@ -2,6 +2,7 @@
 
 export interface Result {
   id: string;
+  league?: string; // GER, ITA, SPA
   block_time: string;
   home_team: string;
   away_team: string;
@@ -32,6 +33,7 @@ export interface Odds {
 }
 
 export interface ParsedResult {
+  league?: string; // GER, ITA, SPA
   block_time: string;
   home_team: string;
   away_team: string;

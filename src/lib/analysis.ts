@@ -269,7 +269,7 @@ export function parseOddsInput(input: string): { valid: boolean; data?: ParsedOd
 // Parse tab or comma-separated results input
 // Old format: "08:24\tLEV 0-2 HSV" or "08:24,LEV 0-2 HSV"
 // New format: "26/01/2026\t08:24\tLEV 0-2 HSV" (with date)
-export function parseResultsInput(input: string): { valid: boolean; data?: ParsedResult[]; error?: string } {
+export function parseResultsInput(input: string, league?: string): { valid: boolean; data?: ParsedResult[]; error?: string } {
   const lines = input.trim().split('\n');
   const parsedResults: ParsedResult[] = [];
 
@@ -356,6 +356,7 @@ export function parseResultsInput(input: string): { valid: boolean; data?: Parse
     }
 
     parsedResults.push({
+      league: league || 'GER',
       block_time: timeCol,
       home_team: homeTeam,
       away_team: awayTeam,

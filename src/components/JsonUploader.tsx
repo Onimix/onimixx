@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { insertResults } from '@/lib/supabase';
 import { validateSportyJson, timestampToBlockTime, parseScore, parseResultsInput } from '@/lib/analysis';
-import type { SportyResponse, ParsedResult } from '@/lib/types';
+import type { SportyResponse, ParsedResult, League } from '@/lib/types';
 
 interface JsonUploaderProps {
   onUploadComplete: (count: number) => void;
@@ -14,6 +14,7 @@ export default function JsonUploader({ onUploadComplete }: JsonUploaderProps) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [selectedLeague, setSelectedLeague] = useState<League>('GER');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const processFiles = async (files: FileList | null) => {
@@ -39,7 +40,7 @@ export default function JsonUploader({ onUploadComplete }: JsonUploaderProps) {
         
         if (isTxt) {
           // Parse tab-separated format
-          const parseResult = parseResultsInput(text);
+          const parseResult = parseResultsInput(text, selectedLeague);
           if (!parseResult.valid) {
             setMessage({ type: 'error', text: parseResult.error || `Invalid format in "${file.name}"` });
             setIsLoading(false);
@@ -88,6 +89,7 @@ export default function JsonUploader({ onUploadComplete }: JsonUploaderProps) {
               const totalGoals = homeGoals + awayGoals;
 
               parsedResults.push({
+                league: selectedLeague,
                 block_time: timestampToBlockTime(match.estimateStartTime),
                 home_team: match.homeTeamName,
                 away_team: match.awayTeamName,
@@ -139,7 +141,7 @@ export default function JsonUploader({ onUploadComplete }: JsonUploaderProps) {
     setIsLoading(true);
     setMessage(null);
 
-    const parseResult = parseResultsInput(pasteText);
+    const parseResult = parseResultsInput(pasteText, selectedLeague);
     if (!parseResult.valid) {
       setMessage({ type: 'error', text: parseResult.error || 'Invalid format' });
       setIsLoading(false);
@@ -240,7 +242,18 @@ export default function JsonUploader({ onUploadComplete }: JsonUploaderProps) {
 
       {/* Paste Input Section */}
       <div className="mt-6">
-        <div className="text-sm font-medium text-gray-700 mb-2">Or paste results directly:</div>
+        <div className="flex items-center gap-4 mb-2">
+          <div className="text-sm font-medium text-gray-700">Or paste results directly:</div>
+          <select
+            value={selectedLeague}
+            onChange={(e) => setSelectedLeague(e.target.value as League)}
+            className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="GER">🇩🇪 Germany</option>
+            <option value="ITA">🇮🇹 Italy</option>
+            <option value="SPA">🇪🇸 Spain</option>
+          </select>
+        </div>
         <div className="text-xs text-gray-500 mb-2">Format: Date[tab]Time[tab]TeamA Goal-Goal TeamB (one per line)</div>
         <textarea
           value={pasteText}
