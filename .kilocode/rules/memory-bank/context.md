@@ -1,10 +1,10 @@
-# Active Context: ONIMIX Eagle Eye Pick
+# Active Context: ONIMIX Universal Scan Protocol
 
 ## Current State
 
-**Project Status**: ✅ SAFE MODE Production Ready with Performance Tracking
+**Project Status**: ✅ Production Ready with Universal Scan Protocol
 
-The ONIMIX Eagle Eye Pick analytics engine is complete with a learning-ready architecture. It provides AI-powered Over 1.5 Goals prediction for Germany Virtual Football with automatic performance tracking and calibration.
+The ONIMIX Eagle Eye Pick now features the Universal Scan protocol - a 24-hour rolling analysis across Germany, Italy, and Spain without being limited to specific time blocks.
 
 ## Recently Completed
 
@@ -36,19 +36,27 @@ The ONIMIX Eagle Eye Pick analytics engine is complete with a learning-ready arc
   - Bounce-back probability (after N unders)
   - Block time trend analysis (hot/cold/neutral)
   - Pattern score affects confidence (+/- 15%)
+- [x] **Universal Scan Protocol** (2026-03-11)
+  - Autonomous Block Monitoring across GER, ITA, SPA
+  - Universal Switch Logic (no block restrictions)
+  - Sharp Eye Safety Net (verify Over 1.5 vs Under 3.5)
+  - Global Flush Detection (if all 3 leagues Under 1.5 → next block high prob)
+  - Top 3 Global Signals display
 
 ## Current Structure
 
 | File/Directory | Purpose | Status |
 |----------------|---------|--------|
-| `src/app/page.tsx` | Main dashboard | ✅ Ready |
+| `src/app/page.tsx` | Main dashboard with Universal Scan | ✅ Ready |
 | `src/app/layout.tsx` | Root layout | ✅ Ready |
 | `src/app/globals.css` | Global styles | ✅ Ready |
 | `src/app/api/model-performance/route.ts` | Performance API | ✅ Ready |
+| `src/app/api/universal-scan/route.ts` | Universal Scan API | ✅ Ready |
 | `src/lib/supabase.ts` | Supabase client & DB ops | ✅ Ready |
 | `src/lib/types.ts` | TypeScript types | ✅ Ready |
 | `src/lib/analysis.ts` | Analysis engine | ✅ Ready |
 | `src/lib/pattern-detection.ts` | Pattern detection module | ✅ Ready |
+| `src/lib/universal-scan.ts` | Universal Scan protocol | ✅ Ready |
 | `src/components/JsonUploader.tsx` | JSON upload | ✅ Ready |
 | `src/components/OddsInput.tsx` | Odds paste input | ✅ Ready |
 | `src/components/HistoricalStats.tsx` | Stats panel | ✅ Ready |

@@ -443,3 +443,41 @@ export interface ParsedOver25Odds {
   over25_odd: number;
   under25_odd: number;
 }
+
+// ============================================
+// UNIVERSAL SCAN PROTOCOL TYPES
+// ============================================
+
+// Universal signal types
+export type UniversalSignalType = 
+  | 'New Producer'
+  | 'Bait Trap'
+  | 'Gap Fill'
+  | 'Mirror Debt'
+  | 'Exit 6 Cap'
+  | 'Global Flush'
+  | 'Sharp Eye';
+
+// Universal signal confidence level
+export type SignalConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+
+// Universal prediction signal
+export interface UniversalSignal {
+  id: string;
+  signal_type: UniversalSignalType;
+  league: 'GER' | 'ITA' | 'SPA';
+  match: string;
+  home_team: string;
+  away_team: string;
+  prediction: 'Over 1.5' | 'Under 2.5';
+  confidence: number;
+  confidence_level: SignalConfidence;
+  target_market: 'Over 1.5' | 'Under 2.5' | 'Under 3.5';
+  odds: number;
+  reasoning: string;
+  mirror_anchor?: MirrorAnchor;
+  is_sharp_eye_verified?: boolean;
+  is_global_flush_trigger?: boolean;
+  block_time: string;
+  created_at: string;
+}

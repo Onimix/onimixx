@@ -8,7 +8,7 @@ import HistoricalStatsPanel from '@/components/HistoricalStats';
 import PredictionPanel from '@/components/PredictionPanel';
 import { getAllResults, getAllOdds, getHistoricalStats, getPerformanceMetrics, insertPrediction } from '@/lib/supabase';
 import { analyzeMatch } from '@/lib/analysis';
-import type { Result, Odds, HistoricalStats, Prediction, PerformanceMetrics, ShadowMirrorPrediction } from '@/lib/types';
+import type { Result, Odds, HistoricalStats, Prediction, PerformanceMetrics, ShadowMirrorPrediction, UniversalSignal } from '@/lib/types';
 
 // Matrix characters for edges - tiny falling code effect
 const matrixChars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
@@ -105,6 +105,9 @@ export default function Home() {
   const [shadowMirrorPredictions, setShadowMirrorPredictions] = useState<ShadowMirrorPrediction[]>([]);
   const [shadowMirrorSummary, setShadowMirrorSummary] = useState<any>(null);
   const [isShadowMirrorLoading, setIsShadowMirrorLoading] = useState(false);
+  const [universalSignals, setUniversalSignals] = useState<UniversalSignal[]>([]);
+  const [universalScanStatus, setUniversalScanStatus] = useState<any>(null);
+  const [isUniversalScanLoading, setIsUniversalScanLoading] = useState(false);
 
   const handleDataInputClick = () => {
     if (isDataInputUnlocked) {
@@ -204,16 +207,19 @@ export default function Home() {
   useEffect(() => {
     loadData();
     loadShadowMirror();
+    loadUniversalScan();
   }, [loadData]);
 
   const handleResultsUploaded = () => {
     loadData();
     loadShadowMirror();
+    loadUniversalScan();
   };
 
   const handleOddsSubmitted = () => {
     loadData();
     loadShadowMirror();
+    loadUniversalScan();
   };
 
   const loadShadowMirror = async () => {
@@ -229,6 +235,29 @@ export default function Home() {
       console.error('Error loading shadow mirror:', error);
     } finally {
       setIsShadowMirrorLoading(false);
+    }
+  };
+
+  const loadUniversalScan = async () => {
+    setIsUniversalScanLoading(true);
+    try {
+      const response = await fetch('/api/universal-scan');
+      const data = await response.json();
+      if (data.success) {
+        setUniversalSignals(data.top_3_signals || []);
+        setUniversalScanStatus({
+          total_signals: data.global_status?.total_signals || 0,
+          production_vacuums: data.global_status?.production_vacuums || 0,
+          over_production_peaks: data.global_status?.over_production_peaks || 0,
+          global_flush_activated: data.global_status?.global_flush_activated || false,
+          current_block_time: data.current_block_time,
+          league_snapshots: data.league_snapshots || [],
+        });
+      }
+    } catch (error) {
+      console.error('Error loading universal scan:', error);
+    } finally {
+      setIsUniversalScanLoading(false);
     }
   };
 
@@ -547,6 +576,192 @@ export default function Home() {
               <div className="text-center py-8 text-indigo-300">
                 <p>No shadow mirror signals available.</p>
                 <p className="text-sm mt-2">Upload yesterday&apos;s results and today&apos;s odds to generate 24-hour team switch predictions.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* UNIVERSAL SCAN PANEL - 24H Rolling Multi-League Protocol */}
+        <section className="mb-10">
+          <div className="bg-gradient-to-br from-emerald-900/50 via-teal-900/50 to-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-emerald-500/30">
+            <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+              🌐 UNIVERSAL SCAN - 24H Rolling Multi-League Protocol
+            </h2>
+            <p className="text-emerald-300 text-sm mb-6">
+              Continuous autonomous analysis across GER, ITA, SPA • No block restrictions • Sharp Eye Safety Net
+            </p>
+            
+            {isUniversalScanLoading ? (
+              <div className="animate-pulse flex gap-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex-1 h-40 bg-emerald-900/50 rounded-xl" />
+                ))}
+              </div>
+            ) : universalSignals.length > 0 ? (
+              <>
+                {/* Global Status Summary */}
+                {universalScanStatus && (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                    <div className="bg-emerald-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-emerald-400">
+                        {universalScanStatus.current_block_time || '--:--'}
+                      </div>
+                      <div className="text-xs text-emerald-300">Current Block</div>
+                    </div>
+                    <div className="bg-yellow-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-yellow-400">
+                        {universalScanStatus.production_vacuums}
+                      </div>
+                      <div className="text-xs text-yellow-300">Production Vacuums</div>
+                    </div>
+                    <div className="bg-orange-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-orange-400">
+                        {universalScanStatus.over_production_peaks}
+                      </div>
+                      <div className="text-xs text-orange-300">Over-Production Peaks</div>
+                    </div>
+                    <div className="bg-cyan-900/30 rounded-xl p-3 text-center">
+                      <div className="text-2xl font-bold text-cyan-400">
+                        {universalScanStatus.total_signals}
+                      </div>
+                      <div className="text-xs text-cyan-300">Total Signals</div>
+                    </div>
+                    <div className={`rounded-xl p-3 text-center ${universalScanStatus.global_flush_activated ? 'bg-red-900/50' : 'bg-slate-700/30'}`}>
+                      <div className={`text-2xl font-bold ${universalScanStatus.global_flush_activated ? 'text-red-400' : 'text-slate-400'}`}>
+                        {universalScanStatus.global_flush_activated ? '🔴 ACTIVE' : '○ Inactive'}
+                      </div>
+                      <div className="text-xs text-slate-300">Global Flush</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* League Snapshots */}
+                {universalScanStatus?.league_snapshots && universalScanStatus.league_snapshots.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-emerald-300 mb-3">League Snapshots</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {universalScanStatus.league_snapshots.map((snapshot: any) => (
+                        <div key={snapshot.league} className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                              snapshot.league === 'GER' ? 'bg-red-500/20 text-red-400' :
+                              snapshot.league === 'ITA' ? 'bg-blue-500/20 text-blue-400' :
+                              'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {snapshot.league}
+                            </span>
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              snapshot.is_production_vacuum ? 'bg-yellow-500/20 text-yellow-400' :
+                              snapshot.is_exit_6_active ? 'bg-orange-500/20 text-orange-400' :
+                              'bg-slate-700 text-slate-400'
+                            }`}>
+                              {snapshot.is_production_vacuum ? 'Production Vacuum' : 
+                               snapshot.is_exit_6_active ? 'Goal Flush' : 'Neutral'}
+                            </span>
+                          </div>
+                          <div className="text-sm text-slate-300 space-y-1">
+                            <div className="flex justify-between">
+                              <span>Avg Goals:</span>
+                              <span className="font-mono text-white">{snapshot.avg_goals?.toFixed(2) || '0.00'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Over 1.5:</span>
+                              <span className="font-mono text-green-400">{snapshot.over_15_rate?.toFixed(1) || '0'}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Mirror Anchors:</span>
+                              <span className="font-mono text-purple-400">{snapshot.mirror_anchors_count || 0}</span>
+                            </div>
+                            {snapshot.dry_teams?.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-slate-700">
+                                <span className="text-yellow-400">Dry Teams:</span>
+                                <span className="text-white ml-2">{snapshot.dry_teams.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* TOP 3 GLOBAL SIGNALS */}
+                <div className="mb-4">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    🎯 Top 3 Global Signals
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {universalSignals.map((signal, idx) => (
+                    <div 
+                      key={signal.id} 
+                      className={`relative overflow-hidden rounded-xl p-4 border-2 ${
+                        idx === 0 ? 'border-yellow-400 bg-yellow-900/20' :
+                        idx === 1 ? 'border-slate-300 bg-slate-700/30' :
+                        'border-amber-600 bg-amber-900/20'
+                      }`}
+                    >
+                      {idx === 0 && (
+                        <div className="absolute top-0 right-0 bg-yellow-400 text-slate-900 text-xs font-bold px-2 py-1 rounded-bl-lg">
+                          TOP PICK
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          signal.league === 'GER' ? 'bg-red-500/20 text-red-400' :
+                          signal.league === 'ITA' ? 'bg-blue-500/20 text-blue-400' :
+                          'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {signal.league}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          signal.signal_type === 'New Producer' ? 'bg-cyan-500/20 text-cyan-400' :
+                          signal.signal_type === 'Bait Trap' ? 'bg-red-500/20 text-red-400' :
+                          signal.signal_type === 'Global Flush' ? 'bg-orange-500/20 text-orange-400' :
+                          signal.signal_type === 'Mirror Debt' ? 'bg-purple-500/20 text-purple-400' :
+                          signal.signal_type === 'Exit 6 Cap' ? 'bg-amber-500/20 text-amber-400' :
+                          'bg-emerald-500/20 text-emerald-400'
+                        }`}>
+                          {signal.signal_type}
+                        </span>
+                      </div>
+                      <div className="text-white font-bold mb-2">{signal.match}</div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-lg font-bold ${
+                          signal.prediction === 'Over 1.5' ? 'text-green-400' : 'text-orange-400'
+                        }`}>
+                          {signal.prediction}
+                        </span>
+                        <span className="font-mono text-white">@ {signal.odds.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                            signal.confidence_level === 'HIGH' ? 'bg-green-500/20 text-green-400' :
+                            signal.confidence_level === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-slate-500/20 text-slate-400'
+                          }`}>
+                            {signal.confidence}%
+                          </span>
+                          {signal.is_sharp_eye_verified && (
+                            <span className="text-xs" title="Sharp Eye Verified">👁️</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Target: {signal.target_market}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-400 line-clamp-2">
+                        {signal.reasoning}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-emerald-300">
+                <p>No universal scan signals available.</p>
+                <p className="text-sm mt-2">Upload results and odds to activate the universal scan protocol.</p>
               </div>
             )}
           </div>
