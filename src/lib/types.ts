@@ -384,8 +384,8 @@ export interface MirrorAnchor {
   home_goals: number;
   away_goals: number;
   total_goals: number;
-  is_deadlock: boolean; // 0:0 or 1:0
-  is_blowout: boolean; // 4:0, 3:1, 4:2 (6+ total goals)
+  is_deadlock: boolean; // 0:0 or 1:0 (total goals <= 1)
+  is_blowout: boolean; // 4+ total goals triggers Bait Switch to Under 2.5
   dry_team: string | null; // Team that scored 0
   goal_debt: number; // Goals needed to break deadlock
 }

@@ -73,9 +73,9 @@ export function isDeadlock(homeGoals: number, awayGoals: number): boolean {
          (homeGoals === 0 && awayGoals === 1);
 }
 
-// Check if a match is a blowout (6+ total goals)
+// Check if a match is a blowout (4+ total goals triggers Bait Switch to Under 2.5)
 export function isBlowout(homeGoals: number, awayGoals: number): boolean {
-  return (homeGoals + awayGoals) >= 6;
+  return (homeGoals + awayGoals) >= 4;
 }
 
 // Calculate the total goal average for a specific block time across all leagues

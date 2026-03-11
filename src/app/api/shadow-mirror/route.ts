@@ -1,27 +1,46 @@
 import { NextResponse } from 'next/server';
-import { getAllResults, getAllOdds } from '@/lib/supabase';
-import { generateShadowMirrorPredictions, findMirrorAnchors, getYesterdayDate } from '@/lib/shadow-mirror';
-import type { ShadowMirrorPrediction } from '@/lib/types';
+import { getAllResults, getAllOdds, getYesterdayResults, getResultsByDateRange } from '@/lib/supabase';
+import { generateShadowMirrorPredictions, findMirrorAnchors, getYesterdayDate, getTodayDate } from '@/lib/shadow-mirror';
+import type { ShadowMirrorPrediction, League } from '@/lib/types';
 
 export async function GET() {
   try {
-    // Fetch results and odds from database
-    const [results, odds] = await Promise.all([
-      getAllResults(),
-      getAllOdds(),
-    ]);
+    // Use optimized date-range queries instead of fetching ALL results
+    const yesterday = getYesterdayDate();
+    const today = getTodayDate();
+    
+    // Fetch yesterday's results (critical for Shadow Mirror) - optimized query
+    const yesterdayResults = await getYesterdayResults();
+    
+    // Fetch last 7 days for historical stats (Exit 6 Cap analysis)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    
+    const historicalResults = await getResultsByDateRange(sevenDaysAgoStr, yesterday);
+    
+    // Combine yesterday + historical for complete analysis
+    const allResults = [...yesterdayResults, ...historicalResults];
+    
+    // Fetch odds from database
+    const odds = await getAllOdds();
 
-    if (results.length === 0) {
+    if (allResults.length === 0) {
       return NextResponse.json({
         success: true,
         predictions: [],
         message: 'No historical results available. Please upload results first.',
-        yesterday_date: getYesterdayDate(),
+        yesterday_date: yesterday,
+        query_info: {
+          yesterday_count: 0,
+          historical_count: 0,
+          query_type: 'optimized_date_range'
+        }
       });
     }
 
     // Generate shadow mirror predictions
-    const predictions = generateShadowMirrorPredictions(results, odds);
+    const predictions = generateShadowMirrorPredictions(allResults, odds);
 
     // Filter to only validated predictions (passing odds filter)
     const validatedPredictions = predictions.filter(p => p.validated);
@@ -35,7 +54,7 @@ export async function GET() {
     };
 
     // Get mirror anchors summary
-    const mirrorAnchors = findMirrorAnchors(results);
+    const mirrorAnchors = findMirrorAnchors(allResults);
     const deadlocks = mirrorAnchors.filter(a => a.is_deadlock);
     const blowouts = mirrorAnchors.filter(a => a.is_blowout);
 
